@@ -1,4 +1,3 @@
-// lib/mangadex_api.dart
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
@@ -93,7 +92,7 @@ class Manga {
     }
 
     final coverUrl = coverFileName != null
-        ? 'https://uploads..org/covers/$id/$coverFileName.512.jpg'
+        ? 'https://uploads.mangadex.org/covers/$id/$coverFileName.512.jpg'
         : null;
 
     return Manga(
@@ -106,7 +105,7 @@ class Manga {
   }
 }
 
-/// Modelo simples de Capítulo (pode manter para depois, se quiser usar)
+/// Modelo de Capítulo
 class MangaChapter {
   final String id;
   final String? title;
@@ -129,13 +128,17 @@ class MangaChapter {
   }
 }
 
-/// Serviço simples para chamar a API da MangaDex
+/// Modelo de Página de Capítulo
+class ChapterPage {
+  final String imageUrl;
+  ChapterPage(this.imageUrl);
+}
+
+/// Serviço para chamar a API da MangaDex
 class MangaDexApi {
   static const String _baseUrl = 'https://api.mangadex.org';
 
-  /// Busca mangás pelo título.
-  ///
-  /// Ex: searchManga('naruto')
+  /// Busca mangás pelo título
   Future<List<Manga>> searchManga(String query) async {
     final uri = Uri.parse(
       '$_baseUrl/manga?title=$query&limit=20&includes[]=cover_art&contentRating[]=safe',
@@ -155,7 +158,7 @@ class MangaDexApi {
         .toList();
   }
 
-  /// Lista capítulos de um mangá (opcional, pra usar depois).
+  /// Lista capítulos de um mangá
   Future<List<MangaChapter>> getChapters(String mangaId) async {
     final uri = Uri.parse(
       '$_baseUrl/chapter?manga=$mangaId&limit=50&order[chapter]=asc',
@@ -173,5 +176,31 @@ class MangaDexApi {
     return data
         .map((item) => MangaChapter.fromJson(item as Map<String, dynamic>))
         .toList();
+  }
+
+  /// Busca páginas de um capítulo específico
+  Future<List<ChapterPage>> getChapterPages(String chapterId) async {
+    final uri = Uri.parse('$_baseUrl/at-home/server/$chapterId');
+
+    final response = await http.get(uri);
+
+    if (response.statusCode != 200) {
+      throw Exception('Erro ao buscar páginas do capítulo (HTTP ${response.statusCode})');
+    }
+
+    final Map<String, dynamic> body = jsonDecode(response.body);
+
+    final baseUrl = body['baseUrl'] as String;
+    final chapter = body['chapter'] as Map<String, dynamic>;
+    final data = (chapter['data'] as List<dynamic>? ?? []).cast<String>();
+    final hash = chapter['hash'] as String;
+
+    // Monta URLs das páginas
+    final pages = data.map((fileName) {
+      final url = "$baseUrl/data/$hash/$fileName";
+      return ChapterPage(url);
+    }).toList();
+
+    return pages;
   }
 }
